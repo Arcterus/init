@@ -59,6 +59,31 @@ pub fn run(file: &Path) -> Result<()> {
                         }
                         print!("\n");
                     },
+                    "pipeless" => if let Some(path) = args.next() {
+                        let mut command = Command::new(path);
+                        for arg in args {
+                            command.arg(arg);
+                        }
+
+                        match unsafe { syscall::clone(0) } {
+                            Ok(0) => {
+                                if let Err(err) = command.exec() {
+                                    println!("init: failed to spawn '{}' without pipes: {}", line, err);
+                                }
+                                let _ = syscall::exit(1);
+                                panic!("failed to exit");
+                            }
+                            Ok(pid) => {
+                                let mut status = 0;
+                                let _ = syscall::waitpid(pid, &mut status, 0);
+                            }
+                            Err(err) => {
+                                println!("init: failed to spawn '{}' without pipes: could not clone init", line);
+                            }
+                        }
+                    } else {
+                        println!("init: failed to spawn without pipes: no argument");
+                    }
                     "export" => if let Some(var) = args.next() {
                         let mut value = String::new();
                         if let Some(arg) = args.next() {
